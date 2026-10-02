@@ -679,9 +679,6 @@
             .filter(Boolean);
           if (names.length) {
             saveItems(names);
-            // Strip the param from the URL without reloading
-            const clean = location.pathname + location.hash;
-            history.replaceState(null, "", clean);
           }
         }
       })();
