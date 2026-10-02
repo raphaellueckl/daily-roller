@@ -4,7 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Daily Roller</title>
-    <link rel="icon" href="./favicon.ico" sizes="any">
     <style>
       *,
       *::before,
@@ -297,6 +296,45 @@
         color: var(--muted);
       }
 
+      /* ── Share button ──────────────────────────────────── */
+      .share-btn {
+        margin-top: 0.4rem;
+        align-self: center;
+        background: var(--surface2);
+        color: var(--text);
+        border: 1.5px solid var(--border);
+        padding: 0.6rem 2rem;
+        font-size: 0.95rem;
+        font-weight: 700;
+        border-radius: 999px;
+        cursor: pointer;
+        letter-spacing: 0.04em;
+        transition:
+          transform 0.12s,
+          border-color 0.2s,
+          color 0.2s;
+        outline-offset: 3px;
+      }
+      .share-btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        border-color: var(--purple);
+        color: #a78bfa;
+      }
+      .share-btn:active:not(:disabled) {
+        transform: scale(0.96);
+      }
+      .share-btn:focus-visible {
+        outline: 2px solid var(--purple);
+      }
+      .share-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .share-btn.copied {
+        border-color: #34d399;
+        color: #34d399;
+      }
+
       /* ── Confetti canvas ───────────────────────────────── */
       #confettiCanvas {
         position: fixed;
@@ -327,7 +365,7 @@
 
     <div class="editor">
       <div class="editor-header">
-        <label for="itemsArea">Items · one per line</label>
+        <label for="itemsArea">Names · one per line</label>
         <span class="item-count" id="itemCount">0 items</span>
       </div>
       <textarea
@@ -340,6 +378,7 @@
         >Changes are saved automatically and instantly reflected in the
         roller.</span
       >
+      <button class="share-btn" id="shareBtn">Share link</button>
     </div>
 
     <canvas id="confettiCanvas" aria-hidden="true"></canvas>
@@ -359,6 +398,7 @@
       const itemCount = document.getElementById("itemCount");
       const machine = document.getElementById("machine");
       const itemsArea = document.getElementById("itemsArea");
+      const shareBtn = document.getElementById("shareBtn");
       const canvas = document.getElementById("confettiCanvas");
       const ctx = canvas.getContext("2d");
 
@@ -407,6 +447,46 @@
           .filter((l) => l.trim());
         saveItems(items);
         updateCount(items.length);
+      });
+
+      /* ── Share link ────────────────────────────────────── */
+      function buildShareUrl() {
+        const items = loadItems();
+        const encoded = items.map((s) => encodeURIComponent(s)).join(",");
+        return `${location.origin}${location.pathname}?names=${encoded}`;
+      }
+
+      shareBtn.addEventListener("click", async () => {
+        const items = loadItems();
+        if (items.length === 0) {
+          itemsArea.focus();
+          return;
+        }
+
+        const url = buildShareUrl();
+        try {
+          await navigator.clipboard.writeText(url);
+        } catch {
+          // Fallback for insecure contexts / older browsers
+          const tmp = document.createElement("textarea");
+          tmp.value = url;
+          tmp.style.position = "fixed";
+          tmp.style.opacity = "0";
+          document.body.appendChild(tmp);
+          tmp.select();
+          try {
+            document.execCommand("copy");
+          } catch (_) {}
+          document.body.removeChild(tmp);
+        }
+
+        const original = shareBtn.textContent;
+        shareBtn.textContent = "Link copied!";
+        shareBtn.classList.add("copied");
+        setTimeout(() => {
+          shareBtn.textContent = original;
+          shareBtn.classList.remove("copied");
+        }, 1800);
       });
 
       // Keep in sync when another tab changes localStorage
@@ -583,11 +663,19 @@
 
       /* ── URL param bootstrap ───────────────────────────── */
       (function () {
-        const param = new URLSearchParams(location.search).get("names");
-        if (param) {
-          const names = param
+        // Read the raw query so per-item percent-encoding (incl. commas)
+        // survives — URLSearchParams would decode once and break the split.
+        const match = location.search.match(/[?&]names=([^&]*)/);
+        if (match) {
+          const names = match[1]
             .split(",")
-            .map((s) => s.trim())
+            .map((s) => {
+              try {
+                return decodeURIComponent(s).trim();
+              } catch {
+                return s.trim();
+              }
+            })
             .filter(Boolean);
           if (names.length) {
             saveItems(names);
